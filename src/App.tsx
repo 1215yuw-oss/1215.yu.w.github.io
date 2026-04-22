@@ -1,533 +1,534 @@
-import { motion, useScroll, useTransform, AnimatePresence } from "motion/react";
+import React, { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { 
-  Github, 
-  Linkedin, 
-  Mail, 
-  ExternalLink, 
-  Award, 
-  Briefcase, 
-  User, 
-  Code, 
-  ChevronRight,
-  Globe,
-  Instagram,
-  Facebook,
-  AtSign
+  Wrench, Plus, Activity, Calendar, Settings, History, 
+  Trash2, DollarSign, MapPin, AlertCircle, X, CheckCircle 
 } from "lucide-react";
-import React, { useRef, useState, createContext, useContext, useEffect } from "react";
+
+// --- Knowledge Base (PTT Rules) ---
+export const MAINTENANCE_RULES = [
+  { id: 'oil', name: '機油', interval: 1000, desc: '潤滑引擎、降溫' },
+  { id: 'tires', name: '輪胎/日常檢查', interval: 1000, desc: '胎壓、煞車、燈光' },
+  { id: 'gear_oil', name: '齒輪油', interval: 2000, desc: '潤滑齒輪箱、減少異音' },
+  { id: 'air_filter', name: '空氣濾清器', interval: 3000, desc: '確保引擎呼吸潔淨空氣' },
+  { id: 'transmission_clean', name: '傳動組清潔', interval: 5000, desc: '清除皮帶粉塵、優化加速' },
+  { id: 'brake_pad', name: '煞車皮/來令片', interval: 5000, desc: '檢查厚度，低於限度即更換' },
+  { id: 'spark_plug', name: '火星塞', interval: 10000, desc: '確保點火順暢' },
+  { id: 'fuel_filter', name: '汽油濾芯', interval: 10000, desc: '過濾汽油雜質' },
+  { id: 'brake_fluid', name: '煞車油', interval: 10000, desc: '確保煞車系統靈敏' },
+  { id: 'battery', name: '電瓶', interval: 10000, desc: '檢查電壓，確保啟動正常' },
+  { id: 'transmission_belt', name: '傳動皮帶', interval: 15000, desc: '檢查龜裂、預防斷裂' },
+];
+
+export const SERVICE_TYPES = MAINTENANCE_RULES.map(r => r.name).concat(["其他 (Other)"]);
 
 // --- Types ---
-type Language = "zh" | "en";
-
-interface Translation {
-  nav: { label: string; id: string }[];
-  hero: { sub: string; title: string; collaborate: string };
-  about: { sub: string; title: string; desc: string; design: string; designItems: string; dev: string; devItems: string };
-  portfolio: { sub: string; title: string; year: string; viewCase: string };
-  quote: { text: string; highlight: string; suffix: string };
-  gallery: { sub: string; title: string };
-  certs: { sub: string; title: string; stats: { label: string; value: string }[] };
-  footer: { title: string; desc: string; social: string; location: string; locationVal: string; copyright: string };
-  projects: { title: string; description: string; tags: string[] }[];
-  certifications: { name: string; issuer: string; date: string }[];
-}
-
-interface Project {
-  title: string;
-  description: string;
-  tags: string[];
-  image: string;
-  link: string;
-}
-
-interface Certification {
-  name: string;
-  issuer: string;
+export interface MaintenanceRecord {
+  id: string;
   date: string;
-  icon: React.ReactNode;
+  type: string;
+  mileage: number;
+  cost: number;
+  shop: string;
+  notes: string;
 }
 
-// --- Context ---
-const LanguageContext = createContext<{
-  lang: Language;
-  setLang: (l: Language) => void;
-  t: Translation;
-} | null>(null);
+export interface BikeInfo {
+  brand: string;
+  model: string;
+  year: number;
+  initMileage: number;
+}
 
-const useTranslation = () => {
-  const context = useContext(LanguageContext);
-  if (!context) throw new Error("useTranslation must be used within LanguageProvider");
-  return context;
+// --- Constants ---
+const DEFAULT_BIKE: BikeInfo = {
+  brand: "YAMAHA",
+  model: "CYGNUS GRYPHUS",
+  year: 2023,
+  initMileage: 0,
 };
 
-// --- Data ---
-const TRANSLATIONS: Record<Language, Translation> = {
-  zh: {
-    nav: [
-      { label: "關於我", id: "about" },
-      { label: "作品集", id: "work" },
-      { label: "數據", id: "certs" },
-      { label: "聯繫我", id: "contact" }
-    ],
-    hero: {
-      sub: "AI 氛圍開發者與設計師",
-      title: "王培聿",
-      collaborate: "讓我們開始合作"
-    },
-    about: {
-      sub: "關於我",
-      title: "個人背景",
-      desc: "我在傳統產業擔任ＱＣ工程師／ＱＡ工程師待了接近13年的時間,雖然工作算穩定,但在2026年AI科技爆發性成長的這個時代,與時俱進似乎是不可避免的,與其擔心被AI取代,學習與AI共同成長並將其化為自己手中的武器,又或者說讓自己在AI時代保有個人價值才是現今最重要的課題。雖然目前仍在初步接觸的階段，但這個網站就是我邁出的第一步，很高興認識看到這邊的您，如果您對我感興趣，歡迎您聯繫我",
-      design: "設計領域",
-      designItems: "UI/UX 設計 • 品牌視覺 • 氛圍營造",
-      dev: "開發技術",
-      devItems: "React • Tailwind CSS • AI 整合"
-    },
-    portfolio: {
-      sub: "精選項目",
-      title: "過往作品",
-      year: "2024 — 2026",
-      viewCase: "查看詳情"
-    },
-    quote: {
-      text: "每一小步，都是",
-      highlight: "通往卓越",
-      suffix: "的必經之路。"
-    },
-    gallery: {
-      sub: "視覺展示",
-      title: "作品剪影"
-    },
-    certs: {
-      sub: "個人特質",
-      title: "專業數據",
-      stats: [
-        { label: "經驗", value: "13年" },
-        { label: "領域", value: "QA/QC" },
-        { label: "轉型", value: "AI 開發" },
-        { label: "所在地", value: "台灣 台中" },
-        { label: "語言", value: "中文/英文" },
-        { label: "狀態", value: "自由接案" }
-      ]
-    },
-    footer: {
-      title: "聯繫我",
-      desc: "目前接受自由職業機會和全職職位。讓我們聯繫並討論您的下一個項目。",
-      social: "社群媒體",
-      location: "所在地",
-      locationVal: "台灣 | 台中",
-      copyright: "Jarvis Wang. 版權所有。"
-    },
-    projects: [],
-    certifications: []
-  },
-  en: {
-    nav: [
-      { label: "About", id: "about" },
-      { label: "Work", id: "work" },
-      { label: "Stats", id: "certs" },
-      { label: "Contact", id: "contact" }
-    ],
-    hero: {
-      sub: "AI Vibe developer & designer",
-      title: "Jarvis Wang",
-      collaborate: "LET'S COLLABORATE"
-    },
-    about: {
-      sub: "ABOUT ME",
-      title: "A Brief Background",
-      desc: "I spent nearly 13 years as a QC/QA Engineer in traditional industries. While stable, in this era of explosive AI growth in 2026, keeping pace is inevitable. Rather than fearing replacement, I believe in growing with AI and turning it into a tool to maintain personal value. Though still in the early stages, this website is my first step. Nice to meet you, and feel free to reach out if you're interested.",
-      design: "DESIGN",
-      designItems: "UI/UX Design • Brand Identity • Vibe Curation",
-      dev: "DEVELOPMENT",
-      devItems: "React • Tailwind CSS • AI Integration"
-    },
-    portfolio: {
-      sub: "FEATURED PROJECTS",
-      title: "Previous Work",
-      year: "2024 — 2026",
-      viewCase: "VIEW CASE"
-    },
-    quote: {
-      text: "Every small step is a",
-      highlight: "journey",
-      suffix: "toward excellence."
-    },
-    gallery: {
-      sub: "VISUALS",
-      title: "Sample Shots"
-    },
-    certs: {
-      sub: "STATS",
-      title: "Measurements",
-      stats: [
-        { label: "Experience", value: "13 Years" },
-        { label: "Field", value: "QA/QC" },
-        { label: "Transition", value: "AI Dev" },
-        { label: "Location", value: "Taichung, TW" },
-        { label: "Languages", value: "ZH / EN" },
-        { label: "Status", value: "Freelance" }
-      ]
-    },
-    footer: {
-      title: "Contact Me",
-      desc: "Currently accepting freelance opportunities and full-time positions. Let's discuss your next project.",
-      social: "SOCIAL",
-      location: "LOCATION",
-      locationVal: "Taichung | Taiwan",
-      copyright: "Jarvis Wang. All rights reserved."
-    },
-    projects: [],
-    certifications: []
-  }
-};
+// --- Sub-components ---
+const StatusCard = ({ title, value, icon: Icon, colorClass, subtitle }: any) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="glass-panel p-6 flex items-start gap-4"
+  >
+    <div className={`p-3 rounded-xl bg-white/5 ${colorClass}`}>
+      <Icon className="w-6 h-6" />
+    </div>
+    <div>
+      <p className="text-secondary text-sm font-medium mb-1">{title}</p>
+      <h3 className="text-2xl font-bold tracking-tight">{value}</h3>
+      {subtitle && <p className="text-xs text-muted mt-2">{subtitle}</p>}
+    </div>
+  </motion.div>
+);
 
-// --- Components ---
+// --- Main Application ---
+export default function App() {
+  const [records, setRecords] = useState<MaintenanceRecord[]>([]);
+  const [bikeInfo, setBikeInfo] = useState<BikeInfo>(DEFAULT_BIKE);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"dashboard" | "history" | "knowledge">("dashboard");
 
-const Navbar = () => {
-  const { lang, setLang, t } = useTranslation();
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [showLang, setShowLang] = useState(false);
+  // Form State
+  const [formData, setFormData] = useState<Partial<MaintenanceRecord>>({
+    date: new Date().toISOString().split('T')[0],
+    type: SERVICE_TYPES[0],
+    mileage: 0,
+    cost: 0,
+    shop: "",
+    notes: ""
+  });
 
+  // Load Data
   useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 50);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    const storedRecords = localStorage.getItem("motorSync_records");
+    const storedBike = localStorage.getItem("motorSync_bike");
+    if (storedRecords) setRecords(JSON.parse(storedRecords));
+    if (storedBike) setBikeInfo(JSON.parse(storedBike));
   }, []);
 
-  return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${isScrolled ? "bg-brand-beige/80 backdrop-blur-md py-4" : "py-8"}`}>
-      <div className="max-w-[1800px] mx-auto px-6 md:px-12 flex justify-between items-center">
-        <a href="#" className="text-2xl font-serif tracking-tighter hover:opacity-70 transition-opacity">JARVIS</a>
-        
-        <div className="flex items-center gap-8">
-          <div className="hidden md:flex items-center gap-8 text-[10px] uppercase tracking-[0.3em] font-medium">
-            {t.nav.map((item) => (
-              <a key={item.id} href={`#${item.id}`} className="hover:text-brand-olive transition-colors">{item.label}</a>
-            ))}
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <button 
-                onClick={() => setShowLang(!showLang)}
-                className="p-2 hover:bg-brand-charcoal/5 rounded-full transition-colors"
-              >
-                <Globe className="w-4 h-4" />
-              </button>
-              <AnimatePresence>
-                {showLang && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute right-0 mt-2 bg-white border border-brand-charcoal/10 p-2 shadow-xl min-w-[100px]"
-                  >
-                    <button onClick={() => { setLang("zh"); setShowLang(false); }} className={`w-full text-left px-4 py-2 text-[10px] uppercase tracking-widest hover:bg-brand-beige transition-colors ${lang === "zh" ? "text-brand-olive font-bold" : ""}`}>繁體中文</button>
-                    <button onClick={() => { setLang("en"); setShowLang(false); }} className={`w-full text-left px-4 py-2 text-[10px] uppercase tracking-widest hover:bg-brand-beige transition-colors ${lang === "en" ? "text-brand-olive font-bold" : ""}`}>English</button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
-};
+  // Save Data
+  useEffect(() => {
+    localStorage.setItem("motorSync_records", JSON.stringify(records));
+    localStorage.setItem("motorSync_bike", JSON.stringify(bikeInfo));
+  }, [records, bikeInfo]);
 
-const Hero = () => {
-  const { t } = useTranslation();
-  const containerRef = useRef(null);
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end start"]
-  });
-  
-  const y = useTransform(scrollYProgress, [0, 1], [0, 300]);
-  const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
+  // Calculations
+  const sortedRecords = useMemo(() => 
+    [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || b.mileage - a.mileage),
+  [records]);
 
-  return (
-    <section ref={containerRef} className="relative h-screen flex items-center justify-center overflow-hidden">
-      <motion.div style={{ y }} className="absolute inset-0">
-        <img 
-          src="https://picsum.photos/seed/editorial-hero/1920/1080" 
-          alt="Hero" 
-          className="w-full h-full object-cover grayscale opacity-60"
-          referrerPolicy="no-referrer"
-        />
-        <div className="absolute inset-0 bg-brand-beige/20" />
-      </motion.div>
+  const latestMileage = useMemo(() => {
+    return records.reduce((max, r) => Math.max(max, r.mileage), bikeInfo.initMileage);
+  }, [records, bikeInfo.initMileage]);
 
-      <motion.div 
-        style={{ opacity }}
-        className="relative z-10 text-center"
-      >
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1 }}
-          className="oval-highlight mb-8"
-        >
-          <h1 className="text-6xl md:text-9xl font-serif text-brand-charcoal">{t.hero.title}</h1>
-        </motion.div>
-        <motion.p 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="text-[10px] uppercase tracking-[0.6em] text-brand-charcoal mb-12 font-medium"
-        >
-          {t.hero.sub}
-        </motion.p>
-        <motion.a 
-          href="#about"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-          className="text-[10px] uppercase tracking-[0.3em] text-brand-charcoal border-b border-brand-charcoal pb-1 hover:opacity-50 transition-opacity"
-        >
-          {t.hero.collaborate}
-        </motion.a>
-      </motion.div>
-    </section>
-  );
-};
+  const totalSpent = useMemo(() => 
+    records.reduce((sum, r) => sum + Number(r.cost), 0),
+  [records]);
 
-const About = () => {
-  const { t } = useTranslation();
-  return (
-    <section id="about" className="section-padding grid lg:grid-cols-2 gap-24 items-center bg-brand-beige">
-      <motion.div 
-        initial={{ opacity: 0, x: -50 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true }}
-        className="relative aspect-[4/5] image-border overflow-hidden"
-      >
-        <img 
-          src="https://picsum.photos/seed/jarvis-about/800/1000" 
-          alt={t.about.title} 
-          className="w-full h-full object-cover grayscale"
-          referrerPolicy="no-referrer"
-        />
-      </motion.div>
+  // Knowledge Base Core Engine: Compute health for every component
+  const componentStatuses = useMemo(() => {
+    return MAINTENANCE_RULES.map(rule => {
+      // Find the specific record for this part
+      const relRecords = sortedRecords.filter(r => r.type === rule.name);
+      const lastServicedMileage = relRecords.length > 0 ? relRecords[0].mileage : bikeInfo.initMileage;
+      const currentUsage = Math.max(0, latestMileage - lastServicedMileage);
       
-      <motion.div
-        initial={{ opacity: 0, x: 50 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true }}
-      >
-        <h2 className="text-6xl md:text-8xl mb-12 leading-tight">{t.about.title}</h2>
-        <p className="text-brand-charcoal/70 text-lg leading-relaxed mb-12 font-light">
-          {t.about.desc}
-        </p>
-        <div className="grid grid-cols-2 gap-12 border-t border-brand-charcoal/10 pt-12">
-          <div>
-            <h4 className="text-brand-charcoal text-xs uppercase tracking-widest mb-4">{t.about.design}</h4>
-            <p className="text-sm text-brand-charcoal/60 leading-relaxed">{t.about.designItems}</p>
+      // Dynamic Interval Logic (e.g. 300km new bike rule)
+      let activeInterval = rule.interval;
+      if (rule.id === 'oil' && latestMileage < 1000 && lastServicedMileage === bikeInfo.initMileage) {
+        activeInterval = 300;
+      } else if (rule.id === 'gear_oil' && latestMileage < 1000 && lastServicedMileage === bikeInfo.initMileage) {
+        activeInterval = 300;
+      }
+
+      const remaining = activeInterval - currentUsage;
+      const healthRaw = (remaining / activeInterval) * 100;
+      const healthPercentage = Math.max(0, Math.min(100, healthRaw));
+      
+      const isCritical = remaining <= 100 || healthPercentage <= 10;
+      const isWarning = remaining <= activeInterval * 0.25;
+
+      return {
+        ...rule,
+        activeInterval,
+        lastServicedMileage,
+        currentUsage,
+        remaining,
+        healthPercentage,
+        isCritical,
+        isWarning
+      };
+    }).sort((a, b) => a.remaining - b.remaining); // Sort by most urgent
+  }, [sortedRecords, latestMileage, bikeInfo.initMileage]);
+
+  const critCount = componentStatuses.filter(s => s.isCritical).length;
+
+  // Handlers
+  const handleAddRecord = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newRecord: MaintenanceRecord = {
+      ...(formData as MaintenanceRecord),
+      id: crypto.randomUUID(),
+      mileage: Number(formData.mileage),
+      cost: Number(formData.cost)
+    };
+    setRecords([...records, newRecord]);
+    setIsFormOpen(false);
+    
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      type: SERVICE_TYPES[0],
+      mileage: Math.max(newRecord.mileage, latestMileage),
+      cost: 0,
+      shop: "",
+      notes: ""
+    });
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm("確定的要刪除這筆紀錄嗎？")) {
+      setRecords(records.filter(r => r.id !== id));
+    }
+  };
+
+  // Renderers
+  return (
+    <div className="relative min-h-screen pb-20">
+      <header className="glass-panel rounded-none border-t-0 border-l-0 border-r-0 sticky top-0 z-40 bg-black/40 backdrop-blur-xl">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg shadow-[0_0_15px_rgba(0,242,254,0.3)] flex items-center justify-center">
+              <Activity className="w-5 h-5 text-black" />
+            </div>
+            <h1 className="text-xl font-bold tracking-wider">MOTOR<span className="text-gradient">SYNC</span></h1>
           </div>
-          <div>
-            <h4 className="text-brand-charcoal text-xs uppercase tracking-widest mb-4">{t.about.dev}</h4>
-            <p className="text-sm text-brand-charcoal/60 leading-relaxed">{t.about.devItems}</p>
-          </div>
+          <button className="p-2 hover:bg-white/5 rounded-full transition-colors relative">
+            <Settings className="w-5 h-5 text-secondary" />
+            {critCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse blur-[1px]"></span>}
+          </button>
         </div>
-      </motion.div>
-    </section>
-  );
-};
+      </header>
 
-const Portfolio = () => {
-  const { t } = useTranslation();
-  return (
-    <section id="work" className="section-padding bg-brand-olive/10">
-      <div className="grid lg:grid-cols-2 gap-24 items-start">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          <h2 className="text-6xl md:text-8xl mb-12 leading-tight">{t.portfolio.title}</h2>
-          <p className="text-brand-charcoal/70 text-lg leading-relaxed mb-12 font-light max-w-md">
-            My featured projects are a blend of technical precision and aesthetic vision, crafted to bridge the gap between human experience and AI potential.
-          </p>
-          <div className="text-brand-charcoal/40 uppercase tracking-[0.3em] text-[10px] font-medium">
-            {t.portfolio.year}
+      <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
+        <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+          <div>
+            <h2 className="text-3xl md:text-5xl text-gradient mb-2">{bikeInfo.brand} {bikeInfo.model}</h2>
+            <p className="text-secondary tracking-widest text-sm uppercase font-mono">{bikeInfo.year} | MILEAGE: {latestMileage} KM</p>
           </div>
-        </motion.div>
+          <button 
+            onClick={() => {
+              setFormData(prev => ({ ...prev, mileage: latestMileage }));
+              setIsFormOpen(true);
+            }}
+            className="btn-primary flex items-center gap-2 w-full md:w-auto justify-center"
+          >
+            <Plus className="w-5 h-5" />
+            <span>新增紀錄 (Add Log)</span>
+          </button>
+        </section>
 
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-6">
-            <div className="aspect-[3/4] image-border bg-brand-charcoal/5 flex items-center justify-center">
-              <span className="text-[10px] uppercase tracking-[0.5em] text-brand-charcoal/20">Coming Soon</span>
-            </div>
-            <div className="aspect-square image-border bg-brand-charcoal/5 flex items-center justify-center">
-              <span className="text-[10px] uppercase tracking-[0.5em] text-brand-charcoal/20">Coming Soon</span>
-            </div>
-          </div>
-          <div className="pt-12 space-y-6">
-            <div className="aspect-square image-border bg-brand-charcoal/5 flex items-center justify-center">
-              <span className="text-[10px] uppercase tracking-[0.5em] text-brand-charcoal/20">Coming Soon</span>
-            </div>
-            <div className="aspect-[3/4] image-border bg-brand-charcoal/5 flex items-center justify-center">
-              <span className="text-[10px] uppercase tracking-[0.5em] text-brand-charcoal/20">Coming Soon</span>
-            </div>
-          </div>
+        <div className="flex border-b border-[#ffffff14] mb-6 overflow-x-auto no-scrollbar">
+          <button 
+            onClick={() => setActiveTab("dashboard")}
+            className={`py-3 px-6 font-medium whitespace-nowrap transition-colors border-b-2 ${activeTab === "dashboard" ? "border-[#00f2fe] text-[#00f2fe]" : "border-transparent text-secondary hover:text-white"}`}
+          >
+            健康監測器 (Health Monitor)
+          </button>
+          <button 
+            onClick={() => setActiveTab("history")}
+            className={`py-3 px-6 font-medium whitespace-nowrap transition-colors border-b-2 ${activeTab === "history" ? "border-[#00f2fe] text-[#00f2fe]" : "border-transparent text-secondary hover:text-white"}`}
+          >
+            歷史紀錄 (History Logs)
+          </button>
+          <button 
+            onClick={() => setActiveTab("knowledge")}
+            className={`py-3 px-6 font-medium whitespace-nowrap transition-colors border-b-2 ${activeTab === "knowledge" ? "border-[#00f2fe] text-[#00f2fe]" : "border-transparent text-secondary hover:text-white"}`}
+          >
+            知識庫 (Knowledge Base)
+          </button>
         </div>
-      </div>
-    </section>
-  );
-};
 
-const QuoteSection = () => {
-  const { t } = useTranslation();
-  return (
-    <section className="section-padding bg-brand-beige">
-      <div className="grid lg:grid-cols-2 gap-24 items-center">
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-5xl md:text-7xl lg:text-8xl font-serif leading-[1.1]"
-        >
-          {t.quote.text} <br />
-          <span className="oval-highlight">{t.quote.highlight}</span> <br />
-          {t.quote.suffix}
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true }}
-          className="aspect-[4/3] image-border overflow-hidden"
-        >
-          <img src="https://picsum.photos/seed/quote-img/800/600" alt="Quote" className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
-        </motion.div>
-      </div>
-    </section>
-  );
-};
+        <AnimatePresence mode="wait">
+          {activeTab === "dashboard" && (
+            <motion.div 
+              key="dashboard"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <StatusCard 
+                  title="累積里程 (Total Mileage)" 
+                  value={`${latestMileage.toLocaleString()} km`} 
+                  icon={MapPin} 
+                  colorClass="text-[#00f2fe]"
+                />
+                <StatusCard 
+                  title="警示項目 (Alerts)" 
+                  value={`${critCount} 項`} 
+                  icon={AlertCircle} 
+                  colorClass={critCount > 0 ? "text-red-400" : "text-[#00ffcc]"}
+                  subtitle={critCount > 0 ? "需盡速檢測保養" : "目前狀況良好"}
+                />
+                <StatusCard 
+                  title="總保養花費 (Total Spent)" 
+                  value={`NT$ ${totalSpent.toLocaleString()}`} 
+                  icon={DollarSign} 
+                  colorClass="text-emerald-400"
+                />
+              </div>
 
-const Gallery = () => {
-  const { t } = useTranslation();
-  return (
-    <section className="section-padding bg-brand-beige">
-      <div className="flex flex-col items-center mb-24">
-        <h2 className="text-6xl md:text-8xl text-center mb-4">{t.gallery.title}</h2>
-        <span className="text-[10px] uppercase tracking-[0.4em] text-brand-charcoal/40">{t.gallery.sub}</span>
-      </div>
+              {/* Component Health Matrices */}
+              <div className="glass-panel p-6 md:p-8">
+                <div className="flex items-center gap-2 mb-6">
+                  <Activity className="w-5 h-5 text-cyan-400" />
+                  <h3 className="text-xl font-bold">零件健康矩陣 (Component Matrix)</h3>
+                </div>
+                
+                <div className="space-y-6">
+                  {componentStatuses.map((stat, i) => (
+                    <motion.div 
+                      key={stat.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <div className="flex justify-between items-end mb-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-white text-md flex items-center gap-2">
+                              {stat.name}
+                              {stat.isCritical && <AlertCircle className="w-4 h-4 text-red-500 animate-pulse" />}
+                            </h4>
+                          </div>
+                          <p className="text-xs text-muted block mt-1">{stat.desc} • 週期: {stat.activeInterval}km</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`font-mono text-sm ${stat.isCritical ? 'text-red-400 font-bold' : stat.isWarning ? 'text-yellow-400' : 'text-cyan-400'}`}>
+                            {stat.remaining <= 0 ? `過期超出 ${Math.abs(stat.remaining)} km` : `剩餘 ${stat.remaining} km`}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="h-2.5 w-full bg-[#1a1d24] rounded-full overflow-hidden border border-[#ffffff14]">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${stat.healthPercentage}%` }}
+                          transition={{ duration: 1, ease: "easeOut" }}
+                          className={`h-full ${
+                            stat.isCritical 
+                            ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]' 
+                            : stat.isWarning 
+                            ? 'bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)]'
+                            : 'bg-gradient-to-r from-blue-500 to-cyan-400 shadow-[0_0_10px_rgba(0,242,254,0.4)]'
+                          }`}
+                        />
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-12 items-end">
-        <motion.div initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-          <div className="aspect-[3/4] image-border bg-brand-charcoal/5 flex items-center justify-center">
-            <span className="text-[10px] uppercase tracking-[0.5em] text-brand-charcoal/20">Coming Soon</span>
-          </div>
-          <p className="text-[10px] uppercase tracking-widest text-brand-charcoal/50">Visual Experiment 01</p>
-        </motion.div>
-        
-        <motion.div initial={{ opacity: 0, y: 0 }} whileInView={{ opacity: 1, y: -40 }} viewport={{ once: true }} className="space-y-4">
-          <div className="aspect-square image-border bg-brand-charcoal/5 flex items-center justify-center">
-            <span className="text-[10px] uppercase tracking-[0.5em] text-brand-charcoal/20">Coming Soon</span>
-          </div>
-          <p className="text-[10px] uppercase tracking-widest text-brand-charcoal/50">Interface Study 02</p>
-        </motion.div>
+          {activeTab === "history" && (
+            <motion.div 
+              key="history"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <div className="glass-panel p-0 overflow-hidden min-h-[50vh]">
+                {sortedRecords.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full p-16 text-secondary">
+                    <History className="w-12 h-12 mb-4 opacity-20" />
+                    <p>尚無保養紀錄，無數據可供智慧推算。</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#ffffff0a]">
+                    {sortedRecords.map((record, index) => (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: index * 0.05 }}
+                        key={record.id} 
+                        className="p-6 hover:bg-white/[0.02] transition-colors flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="p-3 bg-[#1a1d24] rounded-lg border border-[#ffffff14]">
+                            <CheckCircle className="w-5 h-5 text-emerald-400" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-lg text-white">{record.type}</h4>
+                            <div className="flex items-center gap-3 text-sm text-secondary mt-1 tracking-wider">
+                              <span className="flex items-center gap-1 font-mono"><Calendar className="w-4 h-4"/> {record.date}</span>
+                              <span className="flex items-center gap-1 font-mono text-cyan-300"><MapPin className="w-4 h-4"/> {record.mileage.toLocaleString()} km</span>
+                            </div>
+                            {(record.shop || record.notes) && (
+                              <p className="text-sm mt-3 text-muted border-l-2 border-[#ffffff1a] pl-3 py-1">
+                                {record.shop && <span className="block text-secondary mb-1">📍 {record.shop}</span>}
+                                {record.notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="w-full md:w-auto flex justify-between md:flex-col items-center md:items-end gap-4 mt-4 md:mt-0 pt-4 md:pt-0 border-t border-[#ffffff0a] md:border-0">
+                          <div className="text-xl font-bold text-[#00ffcc] font-mono">NT$ {record.cost.toLocaleString()}</div>
+                          <button 
+                            onClick={() => handleDelete(record.id)}
+                            className="text-muted hover:text-red-400 hover:bg-red-400/10 p-2 rounded-md transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
 
-        <motion.div initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="space-y-4">
-          <div className="aspect-[3/4] image-border bg-brand-charcoal/5 flex items-center justify-center">
-            <span className="text-[10px] uppercase tracking-[0.5em] text-brand-charcoal/20">Coming Soon</span>
-          </div>
-          <p className="text-[10px] uppercase tracking-widest text-brand-charcoal/50">Brand Concept 03</p>
-        </motion.div>
-      </div>
-    </section>
-  );
-};
+          {activeTab === "knowledge" && (
+            <motion.div 
+              key="knowledge"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <div className="glass-panel p-8">
+                 <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                   <Wrench className="text-cyan-400" /> 
+                   定期保養一覽表（通用版）
+                 </h3>
+                 <div className="grid gap-4 md:grid-cols-2">
+                    {MAINTENANCE_RULES.map(rule => (
+                      <div key={rule.id} className="bg-[#1a1d24] p-5 rounded-xl border border-[#ffffff0a]">
+                        <div className="flex justify-between items-center mb-2">
+                          <h4 className="font-bold text-white text-lg">{rule.name}</h4>
+                          <span className="text-cyan-400 font-mono text-sm bg-cyan-400/10 px-3 py-1 rounded-full">{rule.interval} km</span>
+                        </div>
+                        <p className="text-sm text-secondary leading-relaxed">{rule.desc}</p>
+                      </div>
+                    ))}
+                 </div>
+                 
+                 <div className="mt-8 p-6 bg-red-400/10 border border-red-400/20 rounded-xl">
+                   <h4 className="font-bold text-red-400 mb-3 flex items-center gap-2">
+                     <AlertCircle className="w-5 h-5" /> 重點注意事項
+                   </h4>
+                   <ul className="list-disc list-inside text-sm text-secondary space-y-2 leading-relaxed">
+                     <li><strong>每 1,000 km：</strong> 檢查機油、胎壓、煞車、燈光。</li>
+                     <li><strong>新車初次：</strong> 機油、齒輪油通常在 300km 做第一次更換。</li>
+                     <li><strong>長期未騎：</strong> 若長時間未使用，建議保養項目同樣按月份時間計算，清潔噴油嘴。</li>
+                     <li><strong>高風險項目：</strong> 若行駛砂石路面，應縮短空氣濾清器更換週期。</li>
+                   </ul>
+                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
 
-const Stats = () => {
-  const { t } = useTranslation();
-  return (
-    <section id="certs" className="section-padding bg-brand-beige">
-      <div className="grid lg:grid-cols-2 gap-24 items-center">
-        <motion.div
-          initial={{ opacity: 0, x: -30 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-          className="aspect-square image-border overflow-hidden"
-        >
-          <img src="https://picsum.photos/seed/stats-img/800/800" alt="Stats" className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
-        </motion.div>
-        
-        <div>
-          <div className="grid grid-cols-2 gap-y-12 gap-x-8">
-            {t.certs.stats.map((stat, idx) => (
-              <motion.div 
-                key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
+      {/* Add Record Modal */}
+      <AnimatePresence>
+        {isFormOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/70 backdrop-blur-md"
+              onClick={() => setIsFormOpen(false)}
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="glass-panel p-8 w-full max-w-lg relative z-10 max-h-[90vh] overflow-y-auto"
+            >
+              <button 
+                onClick={() => setIsFormOpen(false)}
+                className="absolute top-6 right-6 text-secondary hover:text-white transition-colors"
               >
-                <p className="text-[10px] uppercase tracking-widest text-brand-charcoal/40 mb-2">{stat.label}</p>
-                <p className="text-2xl font-serif">{stat.value}</p>
-              </motion.div>
-            ))}
+                <X className="w-6 h-6" />
+              </button>
+              
+              <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                <Plus className="w-6 h-6 text-[#00f2fe]" />
+                新增保養紀錄
+              </h2>
+
+              <form onSubmit={handleAddRecord} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">日期 (Date)</label>
+                    <input 
+                      type="date" 
+                      required
+                      value={formData.date}
+                      onChange={e => setFormData({...formData, date: e.target.value})}
+                      className="w-full focus:ring-2 ring-cyan-400 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">當時里程 (Mileage)</label>
+                    <input 
+                      type="number" 
+                      required
+                      min={0}
+                      value={formData.mileage}
+                      onChange={e => setFormData({...formData, mileage: parseInt(e.target.value) || 0})}
+                      className="w-full font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">保養項目 (Service Type)</label>
+                  <select 
+                    value={formData.type}
+                    onChange={e => setFormData({...formData, type: e.target.value})}
+                    className="w-full"
+                  >
+                    {SERVICE_TYPES.map(type => <option key={type} value={type} className="bg-[#1a1d24]">{type}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">花費金額 (Cost NT$)</label>
+                  <input 
+                    type="number" 
+                    required
+                    min={0}
+                    value={formData.cost}
+                    onChange={e => setFormData({...formData, cost: parseInt(e.target.value) || 0})}
+                    className="w-full font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">車行/店家 (Shop) <span className="text-muted text-xs font-normal">- 選填</span></label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. YAMAHA 授權店"
+                    value={formData.shop}
+                    onChange={e => setFormData({...formData, shop: e.target.value})}
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary mb-2">備註事項 (Notes) <span className="text-muted text-xs font-normal">- 選填</span></label>
+                  <textarea 
+                    rows={3}
+                    placeholder="更換了哪種廠牌的機油？機車技師有什麼建議？"
+                    value={formData.notes}
+                    onChange={e => setFormData({...formData, notes: e.target.value})}
+                    className="w-full resize-none"
+                  ></textarea>
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button type="button" onClick={() => setIsFormOpen(false)} className="btn-secondary flex-1 border-[#ffffff1a]">
+                    取消 (Cancel)
+                  </button>
+                  <button type="submit" className="btn-primary flex-1 shadow-[0_0_15px_rgba(0,242,254,0.2)]">
+                    儲存進資料庫
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </div>
-        </div>
-      </div>
-    </section>
-  );
-};
-
-const Footer = () => {
-  const { t } = useTranslation();
-  return (
-    <footer id="contact" className="bg-brand-beige">
-      <div className="section-padding text-center">
-        <h2 className="text-6xl md:text-9xl mb-16">{t.footer.title}</h2>
-        
-        <div className="flex flex-col md:flex-row justify-center items-center gap-12 md:gap-24 text-[10px] uppercase tracking-[0.3em] font-medium mb-24">
-          <div className="text-center">
-            <p className="text-brand-charcoal/40 mb-4">{t.footer.location}</p>
-            <p>{t.footer.locationVal}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-brand-charcoal/40 mb-4">EMAIL</p>
-            <a href="mailto:1215.yu.w@gmail.com" className="hover:text-brand-olive transition-colors">1215.yu.w@gmail.com</a>
-          </div>
-        </div>
-
-        <div className="flex justify-center gap-8 mb-24">
-          <a href="https://www.instagram.com/imjarviswang/" target="_blank" rel="noopener noreferrer" className="p-3 border border-brand-charcoal/10 rounded-full hover:bg-brand-charcoal hover:text-brand-beige transition-all"><Instagram className="w-5 h-5" /></a>
-          <a href="https://www.facebook.com/DesireSmile/?locale=zh_TW" target="_blank" rel="noopener noreferrer" className="p-3 border border-brand-charcoal/10 rounded-full hover:bg-brand-charcoal hover:text-brand-beige transition-all"><Facebook className="w-5 h-5" /></a>
-          <a href="https://www.threads.com/@imjarviswang?hl=zh-tw" target="_blank" rel="noopener noreferrer" className="p-3 border border-brand-charcoal/10 rounded-full hover:bg-brand-charcoal hover:text-brand-beige transition-all"><AtSign className="w-5 h-5" /></a>
-        </div>
-      </div>
-
-      <div className="aspect-[21/9] w-full overflow-hidden">
-        <img src="https://picsum.photos/seed/footer-img/1920/800" alt="Footer" className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
-      </div>
-
-      <div className="py-8 px-6 text-center text-[9px] uppercase tracking-[0.4em] text-brand-charcoal/30">
-        © 2026 {t.footer.copyright}
-      </div>
-    </footer>
-  );
-};
-
-export default function App() {
-  const [lang, setLang] = useState<Language>("zh");
-
-  return (
-    <LanguageContext.Provider value={{ lang, setLang, t: TRANSLATIONS[lang] }}>
-      <div className="min-h-screen">
-        <Navbar />
-        <main>
-          <Hero />
-          <About />
-          <Portfolio />
-          <QuoteSection />
-          <Gallery />
-          <Stats />
-        </main>
-        <Footer />
-      </div>
-    </LanguageContext.Provider>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
