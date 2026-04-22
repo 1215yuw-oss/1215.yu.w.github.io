@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>智能保養紀錄系統</title>
+<meta name="theme-color" content="#A67C00">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Bebas+Neue&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -140,6 +141,47 @@
   .btn-icon.save:hover { background: var(--gold); color: white; }
 
   .draft-row { background: #FFFAED; }
+
+  /* === Mobile & Tablet Touch Optimizations === */
+  @media (max-width: 768px) {
+    body { padding: 5px; }
+    .page { padding: 15px; }
+    
+    /* Stack user profile under title natively */
+    .header { padding-top: 5px; }
+    .user-profile { 
+      position: relative; 
+      right: auto; 
+      top: auto; 
+      transform: none; 
+      margin-top: 15px; 
+      justify-content: center; 
+      background: var(--bg-sub);
+      padding: 8px;
+      border-radius: 4px;
+    }
+    
+    /* Touch Target & Readability scaling */
+    .plate-input { font-size: 22px; max-width: 150px; }
+    .section-title { font-size: 14px; margin-bottom: 15px; }
+    .stat-val { font-size: 22px; }
+    .stat-label { font-size: 11px; }
+
+    /* Table Input enlargement for easier fat-finger tapping */
+    .table-input { font-size: 14px; padding: 12px 5px; } 
+    .dropdown-trigger { font-size: 14px; min-height: 44px; }
+    .option { font-size: 15px; padding: 14px; }
+    th { font-size: 12px; padding: 14px 8px; }
+    
+    /* Buttons Scaling */
+    .btn-icon.del { font-size: 16px; padding: 8px 16px; }
+    .btn-icon.save { font-size: 12px; padding: 8px 16px; }
+    .btn-add { font-size: 15px; padding: 16px; margin-top: 20px; box-shadow: var(--card-shadow); }
+    .btn-logout { font-size: 12px; padding: 6px 12px; }
+    .btn-google { width: 100%; justify-content: center; }
+
+    table { min-width: 950px; } /* Extra width gives breathing room on mobile scrolling */
+  }
 </style>
 </head>
 <body>
