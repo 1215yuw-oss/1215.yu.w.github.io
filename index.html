@@ -1,13 +1,431 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-TW">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MotorSync | 機車保養紀錄系統</title>
-    <meta name="description" content="Premium motorcycle maintenance tracking system." />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能保養紀錄系統</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Bebas+Neue&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #A67C00;
+    --gold-light: #D4A017;
+    --bg-main: #FFFFFF;
+    --bg-sub: #F8F9FA;
+    --border: #E0E0E0;
+    --text-main: #1A1A1A;
+    --text-muted: #666666;
+    --danger: #C8102E;
+    --success: #2e7d32;
+    --card-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-sub);
+    color: var(--text-main);
+    font-family: 'Noto Sans TC', sans-serif;
+    padding: 10px;
+    line-height: 1.6;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .page {
+    max-width: 950px;
+    margin: 0 auto;
+    background: var(--bg-main);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: var(--card-shadow);
+  }
+  @media (min-width: 768px) { .page { padding: 40px; } }
+
+  /* Auth Container Overlay */
+  #auth-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 70vh;
+    text-align: center;
+  }
+  .btn-google {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-sub);
+    border: 1px solid var(--border);
+    padding: 12px 24px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+    cursor: pointer;
+    box-shadow: var(--card-shadow);
+    transition: all 0.2s;
+  }
+  .btn-google:hover { border-color: var(--gold); background: #FFF9E6; }
+
+  /* Header */
+  .header {
+    text-align: center;
+    border-bottom: 2px solid var(--gold);
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+    position: relative;
+  }
+  .doc-title { font-size: 26px; font-weight: 900; letter-spacing: 3px; color: var(--text-main); }
+  .doc-sub { color: var(--text-muted); font-size: 10px; letter-spacing: 4px; margin-top: 4px; font-weight: 700; text-transform: uppercase; }
+  
+  .user-profile {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .btn-logout { background: transparent; border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; color: var(--text-muted); }
+  .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* Dashboard */
+  .dashboard {
+    display: flex; gap: 12px; margin-bottom: 30px; overflow-x: auto; padding-bottom: 15px; scrollbar-width: none; scroll-snap-type: x mandatory;
+  }
+  .dashboard::-webkit-scrollbar { display: none; }
+  .card { flex: 0 0 160px; background: var(--bg-main); border: 1px solid var(--border); padding: 15px; border-radius: 8px; text-align: center; position: relative; scroll-snap-align: start; box-shadow: var(--card-shadow); }
+  @media (min-width: 768px) { .card { flex: 1; } }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: var(--gold); }
+  .stat-label { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; margin-bottom: 6px; display: block; white-space: nowrap; font-weight: 700; }
+  .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 600; color: var(--gold); }
+  .stat-unit { font-size: 9px; color: var(--text-muted); margin-left: 2px; }
+
+  /* Sections */
+  .section { margin-bottom: 25px; }
+  .section-title { font-size: 12px; font-weight: 700; color: var(--gold); letter-spacing: 1px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .info-row { display: flex; align-items: center; gap: 15px; padding: 5px 0; }
+  .plate-input { background: transparent; border: none; border-bottom: 2px solid var(--border); color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-size: 18px; padding: 5px; width: 100%; max-width: 180px; outline: none; }
+  .plate-input:focus { border-bottom-color: var(--gold); }
+
+  /* Table */
+  .table-container { overflow-x: auto; background: var(--bg-main); border-radius: 4px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; min-width: 800px; }
+  th { background: var(--bg-sub); color: var(--text-muted); font-size: 10px; padding: 12px 8px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+  td { padding: 4px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .table-input { width: 100%; background: transparent; border: none; color: var(--text-main); font-size: 12px; text-align: center; padding: 10px 5px; outline: none; font-family: 'JetBrains Mono', monospace; }
+  .table-input:focus { background: #FFF9E6; }
+  .table-input:disabled { color: var(--text-muted); }
+
+  /* Dropdown Settings */
+  .dropdown { position: relative; width: 100%; }
+  .dropdown-trigger { background: var(--bg-sub); border: 1px solid var(--border); padding: 8px; font-size: 11px; color: var(--text-muted); cursor: pointer; min-height: 40px; display: flex; flex-wrap: wrap; gap: 4px; border-radius: 4px; align-items: center; }
+  .dropdown-trigger.disabled { background: transparent; border: none; cursor: default; }
+  .dropdown-content { display: none; position: absolute; top: 100%; left: 0; width: 100%; background: white; border: 1px solid var(--gold); z-index: 100; max-height: 200px; overflow-y: auto; box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+  .dropdown-content.show { display: block; }
+  .option { padding: 10px 12px; display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 12px; color: var(--text-main); }
+  .option:hover { background: var(--bg-sub); }
+  .item-tag { background: #FFF9E6; color: var(--gold); border: 1px solid #FFEBB3; padding: 2px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; white-space: nowrap; }
+
+  /* Buttons */
+  .btn-add { margin-top: 15px; width: 100%; padding: 12px; background: var(--bg-sub); border: 1px dashed var(--gold); color: var(--gold); border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 13px; transition: all 0.2s; }
+  .btn-add:hover { background: #FFF9E6; }
+  .action-wrap { display: flex; align-items: center; justify-content: center; gap: 5px; }
+  .btn-icon { background: transparent; border: none; cursor: pointer; font-size: 14px; padding: 6px; transition: color 0.2s; }
+  .btn-icon.del:hover { color: var(--danger); }
+  .btn-icon.save { color: var(--gold); font-weight: bold; border: 1px solid var(--gold); border-radius: 4px; padding: 4px 10px; font-size: 11px; }
+  .btn-icon.save:hover { background: var(--gold); color: white; }
+
+  .draft-row { background: #FFFAED; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="header">
+    <div class="doc-title">智能保養紀錄系統</div>
+    <div class="doc-sub">Smart Maintenance Log System <span style="color: var(--gold)">[ CLOUD & AUTH ]</span></div>
+    
+    <div class="user-profile" id="userProfile" style="display: none;">
+      <span id="userName"></span>
+      <button class="btn-logout" onclick="window.logout()">登出</button>
+    </div>
+  </header>
+
+  <!-- Login View -->
+  <div id="auth-view">
+    <h2 style="font-size: 20px; font-weight: 900; margin-bottom: 8px;">系統存取受限</h2>
+    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 24px; max-width: 400px; line-height: 1.8;">
+      此系統已升級前端金屬風格與雲端後台架構。<br>請登入您的社群帳號，資料將自動跨裝置永久同步。
+    </p>
+    <button class="btn-google" onclick="window.loginWithGoogle()">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/><path fill="none" d="M1 1h22v22H1z"/></svg>
+      Log IN with Google
+    </button>
+  </div>
+
+  <!-- Main View -->
+  <div id="main-view" style="display: none;">
+    <!-- 儀表板區域 -->
+    <div class="section">
+      <div class="section-title">保養儀表板 Maintenance Dashboard</div>
+      <div class="dashboard">
+        <div class="card"><span class="stat-label">累積總里程</span><div class="stat-val" id="dash-curr-km">0</div><span class="stat-unit">KM</span></div>
+        <div class="card"><span class="stat-label">下次機油更換</span><div class="stat-val" id="dash-next-oil">--</div><span class="stat-unit">KM</span></div>
+        <div class="card"><span class="stat-label">下次齒輪油</span><div class="stat-val" id="dash-next-gear">--</div><span class="stat-unit">KM</span></div>
+        <div class="card"><span class="stat-label">下次空氣濾芯</span><div class="stat-val" id="dash-next-air">--</div><span class="stat-unit">KM</span></div>
+        <div class="card"><span class="stat-label">下次大保養</span><div class="stat-val" id="dash-next-major">--</div><span class="stat-unit">KM</span></div>
+        <div class="card"><span class="stat-label">下次火星塞</span><div class="stat-val" id="dash-next-plug">--</div><span class="stat-unit">KM</span></div>
+        <div class="card"><span class="stat-label">累積總支出</span><div class="stat-val" id="dash-total-cost">0</div><span class="stat-unit">TWD</span></div>
+      </div>
+    </div>
+
+    <!-- 車輛資訊 -->
+    <div class="section">
+      <div class="section-title">車輛資訊 VEHICLE INFO</div>
+      <div class="info-row">
+        <span style="font-size: 11px; color: var(--text-muted); font-weight: 700;">車牌號碼</span>
+        <input type="text" class="plate-input" id="licensePlate" placeholder="ABC-1234" onchange="window.saveConfig()">
+      </div>
+    </div>
+
+    <!-- 保養紀錄 -->
+    <div class="section">
+      <div class="section-title">保養紀錄 SERVICE LOGS</div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th width="12%">日期</th>
+              <th width="12%">里程(KM)</th>
+              <th width="38%">項目 (複選)</th>
+              <th width="12%">費用</th>
+              <th width="20%">備註</th>
+              <th width="6%">操作</th>
+            </tr>
+          </thead>
+          <tbody id="maintBody"></tbody>
+        </table>
+      </div>
+      <button class="btn-add" onclick="window.addNewDraftRow()">+ 新增紀錄草稿框 Add Draft Row</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  // ES Modules via CDN
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+  import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
+  import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDnp_Q614vS64euY7zBRhHS-3f8INzcEAg",
+    authDomain: "motorsync-f37fc.firebaseapp.com",
+    projectId: "motorsync-f37fc"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const ITEMS = ["機油", "齒輪油", "空氣濾芯", "大保養", "火星塞", "煞車油", "煞車皮", "傳動皮帶", "普利珠", "輪胎", "節流閥清洗", "冷卻液", "電瓶"];
+  const RULES = { "機油": 1000, "齒輪油": 2000, "空氣濾芯": 5000, "大保養": 10000, "火星塞": 10000, "煞車油": 10000 };
+  
+  let currentUser = null;
+  let cloudRecords = [];
+  let draftIdCounter = 0;
+  let unsubRecords = null;
+  let unsubConfig = null;
+
+  // ==== Authentication ====
+  window.loginWithGoogle = async () => {
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (e) { alert("登入失敗: " + e.message); }
+  };
+
+  window.logout = () => signOut(auth);
+
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    if (user) {
+      document.getElementById("auth-view").style.display = "none";
+      document.getElementById("main-view").style.display = "block";
+      document.getElementById("userProfile").style.display = "flex";
+      document.getElementById("userName").textContent = user.displayName;
+      loadCloudData(user.uid);
+    } else {
+      document.getElementById("auth-view").style.display = "flex";
+      document.getElementById("main-view").style.display = "none";
+      document.getElementById("userProfile").style.display = "none";
+      document.getElementById("maintBody").innerHTML = "";
+      if (unsubRecords) unsubRecords();
+      if (unsubConfig) unsubConfig();
+    }
+  });
+
+  // ==== DOM & Logic Functions ====
+  window.toggleDD = (e, id) => {
+    e.stopPropagation();
+    const target = document.getElementById(`content-${id}`);
+    const isShow = target.classList.contains('show');
+    document.querySelectorAll('.dropdown-content').forEach(c => c.classList.remove('show'));
+    if (!isShow) target.classList.add('show');
+  };
+
+  window.updateUI = (id) => {
+    const trigger = document.getElementById(`trigger-${id}`);
+    const checked = Array.from(document.querySelectorAll(`#content-${id} input:checked`)).map(i => i.value);
+    trigger.innerHTML = checked.length ? checked.map(s => `<span class="item-tag">${s}</span>`).join('') : '選擇項目...';
+  };
+
+  // Click outside closes dropdown
+  window.onclick = () => document.querySelectorAll('.dropdown-content').forEach(c => c.classList.remove('show'));
+
+  // ==== Cloud Operations ====
+  function loadCloudData(uid) {
+    unsubRecords = onSnapshot(collection(db, `users/${uid}/records`), (snap) => {
+      cloudRecords = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      cloudRecords.sort((a,b) => new Date(b.date) - new Date(a.date) || b.mileage - a.mileage);
+      renderAll();
+    });
+
+    unsubConfig = onSnapshot(doc(db, `users/${uid}/config/main`), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().licensePlate) {
+        document.getElementById("licensePlate").value = docSnap.data().licensePlate;
+      }
+    });
+  }
+
+  window.saveConfig = () => {
+    if (!currentUser) return;
+    const plate = document.getElementById("licensePlate").value;
+    setDoc(doc(db, `users/${currentUser.uid}/config/main`), { licensePlate: plate }, { merge: true });
+  }
+
+  window.addNewDraftRow = () => {
+    const body = document.getElementById('maintBody');
+    const tr = document.createElement('tr');
+    const id = "draft_" + draftIdCounter++;
+    tr.id = id;
+    tr.className = "draft-row";
+    
+    // Auto-fill defaults
+    const today = new Date().toISOString().split('T')[0];
+    let maxKm = 0;
+    cloudRecords.forEach(r => { if(r.mileage > maxKm) maxKm = r.mileage });
+
+    tr.innerHTML = `
+      <td><input type="date" class="table-input dt" value="${today}"></td>
+      <td><input type="number" class="table-input km" value="${maxKm || ''}" placeholder="0"></td>
+      <td>
+        <div class="dropdown">
+          <div class="dropdown-trigger" id="trigger-${id}" onclick="window.toggleDD(event, '${id}')">選擇項目...</div>
+          <div class="dropdown-content" id="content-${id}">
+            ${ITEMS.map(item => `
+              <label class="option" onclick="event.stopPropagation()">
+                <input type="checkbox" value="${item}" onchange="window.updateUI('${id}')">
+                <span>${item}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      </td>
+      <td><input type="number" class="table-input cg" placeholder="0"></td>
+      <td><input type="text" class="table-input nt"></td>
+      <td>
+        <div class="action-wrap">
+          <button class="btn-icon save" onclick="window.saveDraftToCloud('${id}')" title="寫入雲端">Save</button>
+          <button class="btn-icon del" onclick="document.getElementById('${id}').remove()" title="取消草稿">✕</button>
+        </div>
+      </td>
+    `;
+    body.insertBefore(tr, body.firstChild);
+  };
+
+  window.saveDraftToCloud = async (draftDomId) => {
+    const tr = document.getElementById(draftDomId);
+    const date = tr.querySelector('.dt').value;
+    const mileage = parseInt(tr.querySelector('.km').value) || 0;
+    const cost = parseInt(tr.querySelector('.cg').value) || 0;
+    const notes = tr.querySelector('.nt').value;
+    const items = Array.from(tr.querySelectorAll('.dropdown-content input:checked')).map(i => i.value);
+
+    if (items.length === 0 || mileage === 0) {
+      alert("請選擇至少一個保養項目並填寫里程！");
+      return;
+    }
+
+    // Write to Firebase
+    const ref = collection(db, `users/${currentUser.uid}/records`);
+    await addDoc(ref, { date, mileage, items, cost, notes });
+    // Local remove (onSnapshot listener will re-render securely)
+    tr.remove();
+  };
+
+  window.deleteCloudRecord = async (docId) => {
+    if(confirm("確定刪除此雲端紀錄？")) {
+      await deleteDoc(doc(db, `users/${currentUser.uid}/records`, docId));
+    }
+  };
+
+  // ==== Render Engine ====
+  function renderAll() {
+    // 1. Render Cloud Table
+    const body = document.getElementById('maintBody');
+    // We only preserve existing draft rows that haven't been saved yet.
+    const drafts = Array.from(body.querySelectorAll('.draft-row'));
+    body.innerHTML = '';
+    
+    // Put drafts back
+    drafts.forEach(d => body.appendChild(d));
+
+    // Append cloud rows
+    cloudRecords.forEach(record => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="text" class="table-input" disabled value="${record.date}"></td>
+        <td><input type="text" class="table-input" disabled value="${record.mileage}"></td>
+        <td style="padding:4px"><div style="display:flex; gap:4px; flex-wrap:wrap; justify-content:center;">
+          ${record.items.map(i => `<span class="item-tag" style="background:#f5f5f5; border-color:#e0e0e0; color:#666">${i}</span>`).join('')}
+        </div></td>
+        <td><input type="text" class="table-input" disabled value="${record.cost}"></td>
+        <td><input type="text" class="table-input" disabled value="${record.notes}" style="text-align:left; padding-left:10px;"></td>
+        <td><button class="btn-icon del" onclick="window.deleteCloudRecord('${record.id}')" title="刪除雲端紀錄">✕</button></td>
+      `;
+      body.appendChild(tr);
+    });
+
+    // 2. Dash Calculations
+    let maxKm = 0, totalCost = 0;
+    const lasts = { "機油": 0, "齒輪油": 0, "空氣濾芯": 0, "大保養": 0, "火星塞": 0 };
+
+    cloudRecords.forEach(r => {
+      if(r.mileage > maxKm) maxKm = r.mileage;
+      totalCost += r.cost;
+      r.items.forEach(item => {
+        if(lasts[item] !== undefined && r.mileage > lasts[item]) lasts[item] = r.mileage;
+      });
+    });
+
+    document.getElementById('dash-curr-km').textContent = maxKm.toLocaleString();
+    document.getElementById('dash-total-cost').textContent = totalCost.toLocaleString();
+    
+    ['機油', '齒輪油', '空氣濾芯', '大保養', '火星塞'].forEach(item => {
+      const htmlMap = { "機油": "oil", "齒輪油": "gear", "空氣濾芯": "air", "大保養": "major", "火星塞": "plug" };
+      const target = document.getElementById(`dash-next-${htmlMap[item]}`);
+      const lastKm = lasts[item];
+      const rule = RULES[item];
+      
+      if (lastKm > 0) target.textContent = (lastKm + rule).toLocaleString();
+      else if (maxKm > 0) target.textContent = (Math.ceil(maxKm / rule) * rule).toLocaleString();
+      else target.textContent = '--';
+    });
+  }
+
+</script>
+</body>
 </html>
