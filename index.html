@@ -147,18 +147,17 @@
     body { padding: 5px; }
     .page { padding: 15px; }
     
-    /* Stack user profile under title natively */
-    .header { padding-top: 5px; }
+    /* User Profile elegant refactor */
     .user-profile { 
-      position: relative; 
-      right: auto; 
-      top: auto; 
-      transform: none; 
-      margin-top: 15px; 
-      justify-content: center; 
+      position: absolute; 
+      top: -10px;
+      right: 0;
       background: var(--bg-sub);
-      padding: 8px;
-      border-radius: 4px;
+      padding: 4px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     
     /* Touch Target & Readability scaling */
@@ -167,20 +166,36 @@
     .stat-val { font-size: 22px; }
     .stat-label { font-size: 11px; }
 
-    /* Table Input enlargement for easier fat-finger tapping */
-    .table-input { font-size: 14px; padding: 12px 5px; } 
-    .dropdown-trigger { font-size: 14px; min-height: 44px; }
-    .option { font-size: 15px; padding: 14px; }
-    th { font-size: 12px; padding: 14px 8px; }
+    /* ========================================= */
+    /* Mobile Card Layout for Table (Fixes clipping) */
+    /* ========================================= */
+    .table-container { overflow: visible; border: none; background: transparent; }
+    table { display: block; min-width: 100%; }
+    thead { display: none; } /* Hide typical headers */
+    tbody { display: block; width: 100%; }
+    tr { display: flex; flex-direction: column; margin-bottom: 20px; background: var(--bg-main); border: 2px solid var(--gold-light); border-radius: 8px; padding: 15px; box-shadow: var(--card-shadow); }
+    td { display: flex; flex-direction: column; align-items: flex-start; padding: 10px 0; border: none; border-bottom: 1px dashed var(--border); width: 100%; }
+    td:last-child { border-bottom: none; align-items: center; }
+    
+    /* Auto-inject labels from data-label attributes */
+    td::before { content: attr(data-label); font-weight: 900; color: var(--gold); font-size: 11px; margin-bottom: 6px; letter-spacing: 1px; }
+    
+    .table-input { width: 100%; text-align: left; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-sub); font-size: 16px; padding: 12px; }
+    .table-input:disabled { background: transparent; border-color: transparent; padding-left: 0; padding-top: 0; font-size: 18px; color: var(--text-main); font-weight: 700; height: auto; }
+
+    /* Dropdown Fix: Expand inline rather than absolute popover to avoid scrolling clip */
+    .dropdown { width: 100%; }
+    .dropdown-trigger { font-size: 14px; min-height: 48px; border-radius: 4px; padding: 12px; background: var(--bg-sub); }
+    .dropdown-content { position: relative; top: 0; max-height: none; box-shadow: none; border-top: none; }
+    .option { font-size: 16px; padding: 16px; border-bottom: 1px solid var(--bg-sub); }
     
     /* Buttons Scaling */
-    .btn-icon.del { font-size: 16px; padding: 8px 16px; }
-    .btn-icon.save { font-size: 12px; padding: 8px 16px; }
-    .btn-add { font-size: 15px; padding: 16px; margin-top: 20px; box-shadow: var(--card-shadow); }
-    .btn-logout { font-size: 12px; padding: 6px 12px; }
-    .btn-google { width: 100%; justify-content: center; }
-
-    table { min-width: 950px; } /* Extra width gives breathing room on mobile scrolling */
+    .action-wrap { width: 100%; display: flex; justify-content: space-between; gap: 10px; margin-top: 5px; }
+    .btn-icon.del { flex: 1; padding: 12px; font-size: 16px; background: #FFF0F0; color: var(--danger); border-radius: 4px; font-weight: bold; border: 1px solid #FFD6D6; }
+    .btn-icon.save { flex: 2; padding: 12px; font-size: 16px; background: var(--gold); color: white; border-radius: 4px; text-align: center; }
+    .btn-add { font-size: 16px; padding: 18px; margin-top: 5px; box-shadow: var(--card-shadow); border: 2px dashed var(--gold); }
+    
+    .draft-row { background: #FFFAED; border-color: var(--danger); box-shadow: 0 0 15px rgba(200,16,46,0.1); }
   }
 </style>
 </head>
@@ -365,9 +380,9 @@
     cloudRecords.forEach(r => { if(r.mileage > maxKm) maxKm = r.mileage });
 
     tr.innerHTML = `
-      <td><input type="date" class="table-input dt" value="${today}"></td>
-      <td><input type="number" class="table-input km" value="${maxKm || ''}" placeholder="0"></td>
-      <td>
+      <td data-label="保養日期"><input type="date" class="table-input dt" value="${today}"></td>
+      <td data-label="當前里程 (KM)"><input type="number" class="table-input km" value="${maxKm || ''}" placeholder="0"></td>
+      <td data-label="更換項目 (複選)">
         <div class="dropdown">
           <div class="dropdown-trigger" id="trigger-${id}" onclick="window.toggleDD(event, '${id}')">選擇項目...</div>
           <div class="dropdown-content" id="content-${id}">
@@ -380,12 +395,12 @@
           </div>
         </div>
       </td>
-      <td><input type="number" class="table-input cg" placeholder="0"></td>
-      <td><input type="text" class="table-input nt"></td>
-      <td>
+      <td data-label="花費總價 (NT$)"><input type="number" class="table-input cg" placeholder="0"></td>
+      <td data-label="機車行/備註"><input type="text" class="table-input nt"></td>
+      <td data-label="動作">
         <div class="action-wrap">
-          <button class="btn-icon save" onclick="window.saveDraftToCloud('${id}')" title="寫入雲端">Save</button>
-          <button class="btn-icon del" onclick="document.getElementById('${id}').remove()" title="取消草稿">✕</button>
+          <button class="btn-icon del" onclick="document.getElementById('${id}').remove()" title="取消草稿">✕ 刪除重填</button>
+          <button class="btn-icon save" onclick="window.saveDraftToCloud('${id}')" title="寫入雲端">✔️ 儲存上傳</button>
         </div>
       </td>
     `;
@@ -433,14 +448,18 @@
     cloudRecords.forEach(record => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><input type="text" class="table-input" disabled value="${record.date}"></td>
-        <td><input type="text" class="table-input" disabled value="${record.mileage}"></td>
-        <td style="padding:4px"><div style="display:flex; gap:4px; flex-wrap:wrap; justify-content:center;">
-          ${record.items.map(i => `<span class="item-tag" style="background:#f5f5f5; border-color:#e0e0e0; color:#666">${i}</span>`).join('')}
-        </div></td>
-        <td><input type="text" class="table-input" disabled value="${record.cost}"></td>
-        <td><input type="text" class="table-input" disabled value="${record.notes}" style="text-align:left; padding-left:10px;"></td>
-        <td><button class="btn-icon del" onclick="window.deleteCloudRecord('${record.id}')" title="刪除雲端紀錄">✕</button></td>
+        <td data-label="保養日期"><input type="text" class="table-input" disabled value="${record.date}"></td>
+        <td data-label="紀錄里程"><input type="text" class="table-input" disabled value="${record.mileage} KM"></td>
+        <td data-label="施作項目">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            ${record.items.map(i => `<span class="item-tag" style="background:#f5f5f5; border-color:#e0e0e0; color:#666">${i}</span>`).join('')}
+          </div>
+        </td>
+        <td data-label="花費"><input type="text" class="table-input" disabled value="NT$ ${record.cost}"></td>
+        <td data-label="備註"><input type="text" class="table-input" disabled value="${record.notes}"></td>
+        <td data-label="動作">
+          <button class="btn-icon del" onclick="window.deleteCloudRecord('${record.id}')" style="width:100%; border:1px solid var(--border); padding:8px; border-radius:4px;" title="刪除雲端紀錄">刪除此紀錄 ✕</button>
+        </td>
       `;
       body.appendChild(tr);
     });
