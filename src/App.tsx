@@ -4,6 +4,8 @@ import {
   Wrench, Plus, Activity, Calendar, Settings, History, 
   Trash2, DollarSign, MapPin, AlertCircle, X, CheckCircle 
 } from "lucide-react";
+import { collection, onSnapshot, addDoc, deleteDoc, doc, setDoc } from "firebase/firestore";
+import { db } from "./firebase";
 
 // --- Knowledge Base (PTT Rules) ---
 export const MAINTENANCE_RULES = [
@@ -24,7 +26,7 @@ export const SERVICE_TYPES = MAINTENANCE_RULES.map(r => r.name).concat(["其他 
 
 // --- Types ---
 export interface MaintenanceRecord {
-  id: string;
+  id: string; // Firebase doc id
   date: string;
   type: string;
   mileage: number;
@@ -83,19 +85,29 @@ export default function App() {
     notes: ""
   });
 
-  // Load Data
+  // Cloud Firestore Sync Effect
   useEffect(() => {
-    const storedRecords = localStorage.getItem("motorSync_records");
-    const storedBike = localStorage.getItem("motorSync_bike");
-    if (storedRecords) setRecords(JSON.parse(storedRecords));
-    if (storedBike) setBikeInfo(JSON.parse(storedBike));
-  }, []);
+    // Listen to Firebase Records subcollection
+    const recordsUnsub = onSnapshot(collection(db, "maintenance_records"), (snapshot) => {
+      const fetchedRecords = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MaintenanceRecord));
+      setRecords(fetchedRecords);
+    });
 
-  // Save Data
-  useEffect(() => {
-    localStorage.setItem("motorSync_records", JSON.stringify(records));
-    localStorage.setItem("motorSync_bike", JSON.stringify(bikeInfo));
-  }, [records, bikeInfo]);
+    // Listen to Master Bike Configuration
+    const bikeUnsub = onSnapshot(doc(db, "bike_config", "main"), (docSnap) => {
+      if (docSnap.exists()) {
+        setBikeInfo(docSnap.data() as BikeInfo);
+      } else {
+        // Initialize default Bike profile dynamically into Cloud Firestore if blank
+        setDoc(doc(db, "bike_config", "main"), DEFAULT_BIKE);
+      }
+    });
+
+    return () => {
+      recordsUnsub();
+      bikeUnsub();
+    };
+  }, []);
 
   // Calculations
   const sortedRecords = useMemo(() => 
@@ -113,16 +125,13 @@ export default function App() {
   // Knowledge Base Core Engine: Compute health for every component
   const componentStatuses = useMemo(() => {
     return MAINTENANCE_RULES.map(rule => {
-      // Find the specific record for this part
       const relRecords = sortedRecords.filter(r => r.type === rule.name);
       const lastServicedMileage = relRecords.length > 0 ? relRecords[0].mileage : bikeInfo.initMileage;
       const currentUsage = Math.max(0, latestMileage - lastServicedMileage);
       
       // Dynamic Interval Logic (e.g. 300km new bike rule)
       let activeInterval = rule.interval;
-      if (rule.id === 'oil' && latestMileage < 1000 && lastServicedMileage === bikeInfo.initMileage) {
-        activeInterval = 300;
-      } else if (rule.id === 'gear_oil' && latestMileage < 1000 && lastServicedMileage === bikeInfo.initMileage) {
+      if ((rule.id === 'oil' || rule.id === 'gear_oil') && latestMileage < 1000 && lastServicedMileage === bikeInfo.initMileage) {
         activeInterval = 300;
       }
 
@@ -143,23 +152,27 @@ export default function App() {
         isCritical,
         isWarning
       };
-    }).sort((a, b) => a.remaining - b.remaining); // Sort by most urgent
+    }).sort((a, b) => a.remaining - b.remaining);
   }, [sortedRecords, latestMileage, bikeInfo.initMileage]);
 
   const critCount = componentStatuses.filter(s => s.isCritical).length;
 
-  // Handlers
-  const handleAddRecord = (e: React.FormEvent) => {
+  // Cloud Handlers
+  const handleAddRecord = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newRecord: MaintenanceRecord = {
-      ...(formData as MaintenanceRecord),
-      id: crypto.randomUUID(),
+    const newRecord = {
+      date: formData.date,
+      type: formData.type,
       mileage: Number(formData.mileage),
-      cost: Number(formData.cost)
+      cost: Number(formData.cost),
+      shop: formData.shop || "",
+      notes: formData.notes || ""
     };
-    setRecords([...records, newRecord]);
-    setIsFormOpen(false);
     
+    // Firestore write
+    await addDoc(collection(db, "maintenance_records"), newRecord);
+    
+    setIsFormOpen(false);
     setFormData({
       date: new Date().toISOString().split('T')[0],
       type: SERVICE_TYPES[0],
@@ -170,9 +183,9 @@ export default function App() {
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("確定的要刪除這筆紀錄嗎？")) {
-      setRecords(records.filter(r => r.id !== id));
+  const handleDelete = async (id: string) => {
+    if (confirm("確定的要刪除這筆紀錄嗎？將直接刪除雲端資料庫中的紀錄。")) {
+      await deleteDoc(doc(db, "maintenance_records", id));
     }
   };
 
@@ -185,7 +198,7 @@ export default function App() {
             <div className="p-2 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg shadow-[0_0_15px_rgba(0,242,254,0.3)] flex items-center justify-center">
               <Activity className="w-5 h-5 text-black" />
             </div>
-            <h1 className="text-xl font-bold tracking-wider">MOTOR<span className="text-gradient">SYNC</span></h1>
+            <h1 className="text-xl font-bold tracking-wider">MOTOR<span className="text-gradient">SYNC</span><span className="ml-2 text-[10px] bg-cyan-900/40 text-cyan-400 px-2 py-0.5 rounded border border-cyan-400/20 align-middle">CLOUD DB</span></h1>
           </div>
           <button className="p-2 hover:bg-white/5 rounded-full transition-colors relative">
             <Settings className="w-5 h-5 text-secondary" />
@@ -264,7 +277,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Component Health Matrices */}
               <div className="glass-panel p-6 md:p-8">
                 <div className="flex items-center gap-2 mb-6">
                   <Activity className="w-5 h-5 text-cyan-400" />
@@ -405,7 +417,7 @@ export default function App() {
                    </h4>
                    <ul className="list-disc list-inside text-sm text-secondary space-y-2 leading-relaxed">
                      <li><strong>每 1,000 km：</strong> 檢查機油、胎壓、煞車、燈光。</li>
-                     <li><strong>新車初次：</strong> 機油、齒輪油通常在 300km 做第一次更換。</li>
+                     <li><strong>新車初次：</strong> 機油、齒輪接通常在 300km 做第一次更換。</li>
                      <li><strong>長期未騎：</strong> 若長時間未使用，建議保養項目同樣按月份時間計算，清潔噴油嘴。</li>
                      <li><strong>高風險項目：</strong> 若行駛砂石路面，應縮短空氣濾清器更換週期。</li>
                    </ul>
@@ -521,7 +533,7 @@ export default function App() {
                     取消 (Cancel)
                   </button>
                   <button type="submit" className="btn-primary flex-1 shadow-[0_0_15px_rgba(0,242,254,0.2)]">
-                    儲存進資料庫
+                    儲存進 Firebase
                   </button>
                 </div>
               </form>
